@@ -1,3 +1,8 @@
+'''
+This is the anaconda remade as a python file
+The main difference is that I used a lot of helper functions instead of writing all the code as is.
+Feels more organized to me... If I'd have to do it again, I'd probably use classes instead of having so many functions
+'''
 ###############################################################################################
 # IMPORTS
 ###############################################################################################
@@ -28,6 +33,8 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.naive_bayes import GaussianNB
 from sklearn.tree import DecisionTreeClassifier
 
+# final model evaluation
+from sklearn.metrics import confusion_matrix, classification_report, accuracy_score, precision_score, recall_score
 
 ###############################################################################################
 # HyperParams
@@ -292,7 +299,7 @@ def run_grid_search(pipe: Pipeline, param_grid: list[dict[str, any]], data: pd.D
 
 
 # Prints and displays the results from the CV
-def summarize_grid_search(grid: GridSearchCV, top_n: int=10) -> tuple[pd.DataFrame, sklearn.base.BaseEstimator]:
+def summarize_grid_search(grid: GridSearchCV, top_n: int=10) -> pd.DataFrame:
     # Summary of the results
     cv_results_df = pd.DataFrame(grid.cv_results_)
     sorted_df = cv_results_df.sort_values(by="mean_test_score", ascending=False)    # higher mean test score the better, so we sort by decreasing order
@@ -309,8 +316,31 @@ def summarize_grid_search(grid: GridSearchCV, top_n: int=10) -> tuple[pd.DataFra
     print(f"Macro-F1 = {grid.best_score_:.3f}")
     print(f"Params   = {grid.best_params_}")
 
-    return results_df, grid.best_estimator_
+    return results_df
 
+
+# General model evaluation, the function prints out the results
+def print_model_evaluation(test_labels: pd.DataFrame, labels_pred: pd.Series) -> None:
+    print('\nFirst 5 predictions:')
+    for _ in range(5):
+        print(f'Example no.{_}, Expected:{test_labels.iloc[_]}, predicted:{labels_pred[_]}')
+    print('\n' *2)
+    print(f"Accuracy = {accuracy_score(test_labels, labels_pred)*100:.1f}")
+    print(f"Precision = {precision_score(test_labels, labels_pred, average='macro')*100:.1f}")
+    print(f"Recall = {recall_score(test_labels, labels_pred, average='macro')*100:.1f}")
+    print(f"F1 Score = {f1_score(test_labels, labels_pred, average='macro')*100:.1f}")
+    print("\nDetailed classification report:")
+
+    print(classification_report(test_labels, labels_pred, digits=3))
+
+    cm = confusion_matrix(test_labels, labels_pred)
+    plt.figure(figsize=(6, 4))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=np.unique(test_labels), yticklabels=np.unique(test_labels))
+    plt.title("Confusion Matrix")
+    plt.xlabel("Predicted label")
+    plt.ylabel("True label")
+    plt.tight_layout()
+    plt.show()
 
 
 ###############################################################################################
@@ -353,12 +383,30 @@ def main():
     grid = run_grid_search(pipe_line, param_grid,train_data, train_labels)
     summarize_grid_search(grid, 10)
 
-    # Save results for later
-    results_df, best_model = summarize_grid_search(grid)
-    BEST_MODEL = grid.best_estimator_
-    BEST_PCA = best_model.named_steps["pca"]
-    BEST_CLF = best_model.named_steps["clf"]
+    results_df = summarize_grid_search(grid)
+    best_params = grid.best_params_
+    chosen_num_of_componets = best_params['pca__n_components']
+    chosen_c = best_params['clf__C']
+    chosen_clf = best_params['clf']
+    
 
+    # reFitting the model with best params/classifier
+    # Params   = {'clf': LogisticRegression(max_iter=2000, random_state=2025), 'clf__C': 0.01, 'pca__n_components': None}
+
+    train_data_scaled = SCALER.fit_transform(train_data)
+    
+    final_PCA = PCA(n_components=chosen_num_of_componets, random_state=RANDOM)
+    train_data_scaled_pca = final_PCA.fit_transform(train_data_scaled)
+
+    clf_model = LogisticRegression(C = chosen_c, penalty= 'l2', solver = 'lbfgs', max_iter = 2000, random_state=RANDOM)
+    clf_model.fit(train_data_scaled_pca, train_labels)
+
+    data_test_scaled = SCALER.transform(test_data)
+    data_test_pca = final_PCA.transform(data_test_scaled)
+    labels_pred = clf_model.predict(data_test_pca)
+
+    # Evaluation
+    print_model_evaluation(test_labels, labels_pred)
 
 if __name__ == "__main__":
     main()
