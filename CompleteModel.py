@@ -1,6 +1,6 @@
 '''
 This is the anaconda remade as a python file
-The main difference is that I used a lot of helper functions instead of writing all the code as is.
+The main difference is that I used a lot of helper functions instead of writing all the code as is inside the main
 Feels more organized to me... If I'd have to do it again, I'd probably use classes instead of having so many functions
 '''
 ###############################################################################################
@@ -397,10 +397,11 @@ def main():
     
     final_PCA = PCA(n_components=chosen_num_of_componets, random_state=RANDOM)
     train_data_scaled_pca = final_PCA.fit_transform(train_data_scaled)
-
+    
     clf_model = LogisticRegression(C = chosen_c, penalty= 'l2', solver = 'lbfgs', max_iter = 2000, random_state=RANDOM)
     clf_model.fit(train_data_scaled_pca, train_labels)
 
+    # test prediction
     data_test_scaled = SCALER.transform(test_data)
     data_test_pca = final_PCA.transform(data_test_scaled)
     labels_pred = clf_model.predict(data_test_pca)
